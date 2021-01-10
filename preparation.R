@@ -3,7 +3,7 @@ library(foreach)
 
 # density function
 dens <- function(x, delta) {
-  if (x < 0) {
+  if (x <= 0) {
     return(0 * delta)
   } # so dimension fit
   (delta / sqrt(2 * pi)) * exp(delta) * (x^(-1.5)) *
@@ -81,50 +81,62 @@ bs_non_param <- function(x, k = 2, initial = 1, sta = seq(min(x):max(x)),
 }
 
 
-# sample values in a markov chain
-MCMC <- function(theta_0, delta, p, n) {
-  res <- matrix(NA, n, 1)
+# sample n values in a markov chain via metropolis hasting
+# with stationary density with parameters delta, p
+# initial values theta_0
+# proposal density is normal with sd
+MCMC <- function(theta_0, delta, p, n, sd = 4) {
+  mc <- matrix(NA, n, 1)
   theta <- theta_0
+  accepted <- 0
 
   for (i in 1:n) {
-    theta_i <- rnorm(1, theta, 1)
+    theta_i <- rnorm(1, theta, sd = sd)
     alpha <- min(1, (p %*% t(dens(theta_i, delta)) / p %*% t(dens(theta, delta))))
-    if (rbinom(1, 1, prob = alpha) == 1) theta <- theta_i
-    res[i, ] <- theta
+    if (rbinom(1, 1, prob = alpha) == 1) {
+      theta <- theta_i
+      accepted <- accepted + 1
+    } 
+    mc[i, ] <- theta
+
   }
-  return(res)
+  # acceptance rate should be between 0.23 and 0.45
+  return(list("mc"  = mc, "acceptance" = accepted / n))
 }
 
 
+
 # get iid samples from markov chain
-MCMC_iid <- function(res, n = 300, lag = 35, burn_in = 100) {
-  len <- nrow(res)
-  keep <- res[burn_in:len, ][seq(1, len - burn_in, by = lag)]
+MCMC_iid <- function(mc, n = 300, lag = 20, burn_in = 100) {
+  len <- nrow(mc)
+  keep <- mc[burn_in:len, ][seq(1, len - burn_in, by = lag)]
   keep <- keep[1:n]
   keep
 }
 
 
 # bootstrap CI from MCMC_iid
-bs_param <- function(B = 100, delta, p, theta_0 = 1, n = 15000, lag = 40, burn_in = 100, parallel = TRUE) {
+bs_param <- function(B = 100, delta, p, theta_0 = 1, n = 8000, sd = 4,  lag = 20, burn_in = 1000, parallel = TRUE) {
   k <- length(delta)
   result <- matrix(NA, B, 2 * k)
   if(parallel) {
     foreach (i=1:B, .combine=rbind) %dopar% {
       source("preparation.R")
-      res <- MCMC(theta_0 = theta_0, delta = delta, p = p, n = n)
-      samp <- MCMC_iid(res, lag = lag, burn_in = burn_in)
+      res <- MCMC(theta_0 = theta_0, delta = delta, p = p, n = n, sd = sd)
+      mc <- res$mc
+      samp <- MCMC_iid(mc, lag = lag, burn_in = burn_in)
       param <- EM(samp, k = k)
       cbind(param$delta, param$p)
     }
   } else {
     for (i in 1:B) {
       res <- MCMC(theta_0 = theta_0, delta = delta, p = p, n = n)
-      samp <- MCMC_iid(res, lag = lag, burn_in = burn_in)
+      mc <- res$mc
+      samp <- MCMC_iid(mc, lag = lag, burn_in = burn_in)
       param <- EM(samp, k = k)
       result[i, ] <- cbind(param$delta, param$p)
-      result
     }
+    result
   }
 }
 
