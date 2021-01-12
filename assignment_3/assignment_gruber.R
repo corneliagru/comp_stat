@@ -22,7 +22,7 @@ param_k5 <- EM(x, k = 5)
 param_k5$delta
 
 # only one class
-param <- EM(x, k = 2)
+param <- EM(x, k = 1)
 delta <- param$delta
 p <- param$p
 
@@ -36,8 +36,8 @@ yy <- sapply(xx, dens_plot, delta = delta, p = p)
 
 plot(density(x), ylim = c(0,0.4), main = "")
 lines(xx, yy, col = "red")
-legend("topright", legend = c("observed data", "d1 = 1.69, p1 = 9%, \n d2 = 2.60, p2 = 91%"),
-       col = c("black", "red"),lty = 1,  cex = 1)
+legend("topright", legend = c("observed data", "delta = 2.37"),
+       col = c("black", "red"),lty = 1,  cex = 1.1)
 
 
 
@@ -48,7 +48,7 @@ legend("topright", legend = c("observed data", "d1 = 1.69, p1 = 9%, \n d2 = 2.60
 
 #find settings for metropolis hastings algorithm
 
-res <- MCMC(theta_0 = 1, delta = delta, p = p, n = 7000)
+res <- MCMC(theta_0 = 1, delta = delta, p = p, n = 7000,  sd = 4)
 
 #acceptance around 30% wenn sd = 4
 res$acceptance
@@ -77,7 +77,7 @@ apply(res_bs, 2, quantile, probs = c(0.025, 0.975))
 
 
 #prepare
-param <- EM(x, k = 2)
+param <- EM(x, k = 1)
 delta <- param$delta
 p <- param$p
 
@@ -87,7 +87,7 @@ registerDoParallel(numCores)
 source("preparation.R")
 start <- Sys.time()
 res_bs <- bs_param(B = 1000, delta = delta, p = p, theta_0 = 1, 
-                   n = 7000, lag = 20,
+                   n = 300*lag + burn_in, sd = 4, lag = 20,
                    burn_in = 1000,  parallel = TRUE)
 end <- Sys.time()
 print(end - start)
@@ -98,7 +98,7 @@ stopImplicitCluster()
 
 
 ci <- apply(res_bs, 2, quantile, probs = c(0.025, 0.975))
-round(ci,3)
+ci
 d_lower <- ci[1,1]
 d_upper <- ci[2,1]
 

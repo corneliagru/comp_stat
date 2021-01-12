@@ -46,20 +46,8 @@ EM <- function(x, k = 2, initial = 1, sta = seq(min(x):max(x)),
       w[i, ] <- temp / sum(temp)
       lik <- lik + log(sum(temp))
     }
-    p <- (rep(1, n) %*% w) / n 
-    #delta <- (rep(1, n) %*% w) / ((rep(1, n) %*% w) - 0.5 * ((rep(1, n) %*% (w / x))))
-    #delta <- (t(x) %*% w) / (rep(1, n) %*% w)
-    
-    
-    delta <- (-(rep(1, n) %*% w)-
-                sqrt((rep(1, n) %*% w)^2 +
-                       4* (rep(1, n) %*% (w / x)) * (rep(1, n) %*% w))) /
-      (-2*(rep(1, n) %*% (w / x)))
-      
-    
-    
-    
-    
+    p <- (rep(1, n) %*% w) / n
+    delta <- (t(x) %*% w) / (rep(1, n) %*% w)
     criterion <- abs((liknew - lik) / lik)
     if (criterion < tolerance) finished <- 1
     liknew <- lik
@@ -96,15 +84,14 @@ bs_non_param <- function(x, k = 2, initial = 1, sta = seq(min(x):max(x)),
 # sample n values in a markov chain via metropolis hasting
 # with stationary density with parameters delta, p
 # initial values theta_0
-# proposal density is exponential
-MCMC <- function(theta_0, delta, p, n) {
+# proposal density is normal with sd
+MCMC <- function(theta_0, delta, p, n, sd = 4) {
   mc <- matrix(NA, n, 1)
   theta <- theta_0
   accepted <- 0
 
   for (i in 1:n) {
-    #use proposal that is always positive
-    theta_i <- rexp(1, rate = theta)
+    theta_i <- rnorm(1, theta, sd = sd)
     alpha <- min(1, (p %*% t(dens(theta_i, delta)) / p %*% t(dens(theta, delta))))
     if (rbinom(1, 1, prob = alpha) == 1) {
       theta <- theta_i
@@ -129,14 +116,13 @@ MCMC_iid <- function(mc, n = 300, lag = 20, burn_in = 100) {
 
 
 # bootstrap CI from MCMC_iid
-bs_param <- function(B = 100, delta, p, theta_0 = 1, n = 8000,  lag = 20,
-                     burn_in = 1000, parallel = TRUE) {
+bs_param <- function(B = 100, delta, p, theta_0 = 1, n = 8000, sd = 4,  lag = 20, burn_in = 1000, parallel = TRUE) {
   k <- length(delta)
   result <- matrix(NA, B, 2 * k)
   if(parallel) {
     foreach (i=1:B, .combine=rbind) %dopar% {
       source("preparation.R")
-      res <- MCMC(theta_0 = theta_0, delta = delta, p = p, n = n)
+      res <- MCMC(theta_0 = theta_0, delta = delta, p = p, n = n, sd = sd)
       mc <- res$mc
       samp <- MCMC_iid(mc, lag = lag, burn_in = burn_in)
       param <- EM(samp, k = k)
@@ -160,9 +146,9 @@ bs_param <- function(B = 100, delta, p, theta_0 = 1, n = 8000,  lag = 20,
 # debugging ---------------------------------------------------------------
 
 
-# 
-# B <- 100
-# theta_0 <- 1
-# n <- 15000
-# lag <- 40
-# burn_in <- 100
+
+B <- 100
+theta_0 <- 1
+n <- 15000
+lag <- 40
+burn_in <- 100
